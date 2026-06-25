@@ -181,11 +181,24 @@
 
 <script>
   const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-  const SYSTEM_PROMPT = `Tu analyses des images de QCM en temps réel.
+  const SYSTEM_PROMPT = `Tu es un expert senior en audit informatique et sécurité des systèmes d'information, avec une maîtrise approfondie de :
+- CISA (Certified Information Systems Auditor) et les standards ISACA
+- COBIT 5 / COBIT 2019 (gouvernance et management des SI)
+- ISO 27001 / ISO 27002 (sécurité de l'information)
+- SOC 1 / SOC 2 / SOC 3 (contrôles de service)
+- ITIL (gestion des services IT)
+- PCI-DSS, RGPD/GDPR
+- Contrôles IT généraux (GITC), contrôles applicatifs
+- Gestion des risques IT, business continuity, disaster recovery
+- Audit des accès, IAM, ségrégation des tâches
+- Sécurité réseau, cryptographie, tests d'intrusion
+- Gouvernance IT, comités d'audit, rapports d'audit
+
+Quand on te montre une image de QCM (en français, anglais ou autre langue) :
 RÈGLE ABSOLUE : réponds UNIQUEMENT avec "Réponse X" où X est la lettre (A, B, C, D...) ou le numéro de la bonne réponse.
-Exemples : "Réponse B" — "Réponse 3"
-Si pas de QCM clair ou image floue : réponds uniquement "..."
-AUCUNE explication. AUCUN autre texte.`;
+Exemples : "Réponse B" — "Réponse 3" — "Réponse C"
+Si image floue ou pas de QCM visible : réponds uniquement "..."
+AUCUNE explication. AUCUN autre texte. Juste "Réponse X".`;
   const MIN_INTERVAL_MS = 4200;
 
   const video       = document.getElementById('video');
@@ -261,7 +274,7 @@ AUCUNE explication. AUCUN autre texte.`;
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-4-6',
         max_tokens: 20,
         system: SYSTEM_PROMPT,
         messages: [{
