@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="QCM AI" />
+  <title>QCM AI</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      background: #000; color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      height: 100dvh; overflow: hidden; user-select: none;
+    }
+    #video { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+    #canvas { display: none; }
+    #ui {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column; justify-content: space-between;
+      padding: env(safe-area-inset-top, 16px) 0 env(safe-area-inset-bottom, 16px);
+    }
+    #topbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px 10px; }
+    #topbar-left { display: flex; align-items: center; gap: 10px; }
+    #app-title { font-size: 20px; font-weight: 800; letter-spacing: 2px; text-shadow: 0 1px 6px rgba(0,0,0,.9); }
+    #live-tag { display: none; align-items: center; gap: 5px; background: rgba(239,68,68,.85); border-radius: 8px; padding: 3px 9px; }
+    #live-tag.visible { display: flex; }
+    #live-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.25} }
+    #live-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+    #settings-btn { background: rgba(0,0,0,.4); border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .banner { margin: 4px 16px; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 500; text-align: center; }
+    #warn-banner { background: rgba(234,179,8,.92); color: #000; display: none; }
+    #warn-banner.visible { display: block; }
+    #error-banner { background: rgba(239,68,68,.88); display: none; }
+    #error-banner.visible { display: block; }
+    #answer-box { position: absolute; bottom: 130px; left: 20px; right: 20px; background: rgba(0,0,0,.75); border: 2.5px solid #4ade80; border-radius: 20px; padding: 18px 24px; text-align: center; display: none; }
+    #answer-box.visible { display: block; }
+    #answer-text { font-size: 48px; font-weight: 900; color: #4ade80; letter-spacing: 3px; }
+    #bottom-bar { display: flex; align-items: center; justify-content: center; padding-bottom: 24px; height: 110px; background: rgba(0,0,0,.45); }
+    .main-btn { display: flex; align-items: center; gap: 12px; border: none; border-radius: 40px; padding: 16px 36px; font-size: 17px; font-weight: 700; cursor: pointer; transition: opacity .15s; }
+    .main-btn:active { opacity: .75; }
+    .btn-icon { width: 14px; height: 14px; border-radius: 2px; }
+    #start-btn { background: #4ade80; color: #000; }
+    #start-btn .btn-icon { background: #000; border-radius: 50%; }
+    #stop-btn { background: #ef4444; color: #fff; display: none; }
+    #stop-btn .btn-icon { background: #fff; }
+    #start-btn.disabled { opacity: .4; pointer-events: none; }
+
+    /* Settings */
+    #settings-panel { position: fixed; inset: 0; z-index: 100; background: #0d0d0d; display: none; flex-direction: column; padding: env(safe-area-inset-top,20px) 0 env(safe-area-inset-bottom,20px); overflow-y: auto; }
+    #settings-panel.open { display: flex; }
+    #settings-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #1e1e1e; }
+    #back-btn { color: #4ade80; font-size: 16px; background: none; border: none; cursor: pointer; }
+    #settings-title { font-size: 18px; font-weight: 700; }
+    #settings-body { padding: 24px; flex: 1; }
+    .s-label { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+    .s-desc { color: #9ca3af; font-size: 14px; line-height: 22px; margin-bottom: 12px; }
+    #gemini-link { display: block; background: #0f2a1a; border: 1px solid #1a4d2e; border-radius: 10px; padding: 13px 16px; color: #4ade80; font-size: 14px; font-weight: 500; text-decoration: none; margin-bottom: 20px; }
+    #input-row { display: flex; gap: 10px; margin-bottom: 14px; }
+    #api-input { flex: 1; background: #1a1a1a; color: #fff; border: 1px solid #2a2a2a; border-radius: 10px; padding: 14px 16px; font-size: 15px; }
+    #api-input::placeholder { color: #444; }
+    #eye-btn { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 14px; font-size: 18px; cursor: pointer; }
+    #save-btn { width: 100%; background: #4ade80; color: #000; border: none; border-radius: 12px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 28px; }
+    .info-box { border-radius: 14px; padding: 18px; border: 1px solid; margin-bottom: 16px; }
+    .info-box.green { background: #0f1a0f; border-color: #1a3a1a; }
+    .info-box.blue { background: #0f1520; border-color: #1a2a40; }
+    .info-title { color: #4ade80; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+    .info-item { color: #9ca3af; font-size: 13px; line-height: 26px; }
+
+    /* Permission */
+    #perm-screen { position: fixed; inset: 0; z-index: 50; background: #111; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 32px; text-align: center; }
+    #perm-screen.visible { display: flex; }
+    #perm-btn { background: #4ade80; color: #000; border: none; border-radius: 12px; padding: 14px 36px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 24px; }
+  </style>
+</head>
+<body>
+
+<video id="video" autoplay playsinline muted></video>
+<canvas id="canvas"></canvas>
+
+<div id="perm-screen">
+  <div style="font-size:56px;margin-bottom:20px">📷</div>
+  <p style="font-size:20px;font-weight:700;margin-bottom:12px">Accès à la caméra requis</p>
+  <p style="color:#9ca3af;font-size:15px;line-height:22px">Pour analyser les QCM, l'app a besoin de ta caméra arrière.</p>
+  <button id="perm-btn">Autoriser</button>
+</div>
+
+<div id="ui">
+  <div>
+    <div id="topbar">
+      <div id="topbar-left">
+        <span id="app-title">QCM AI</span>
+        <div id="live-tag"><div id="live-dot"></div><span id="live-label">LIVE</span></div>
+      </div>
+      <button id="settings-btn">⚙️</button>
+    </div>
+    <div id="warn-banner" class="banner">⚠️ Configure ta clé API dans les paramètres</div>
+    <div id="error-banner" class="banner"></div>
+  </div>
+
+  <div id="answer-box"><div id="answer-text"></div></div>
+
+  <div id="bottom-bar">
+    <button id="start-btn" class="main-btn"><div class="btn-icon"></div>Démarrer</button>
+    <button id="stop-btn" class="main-btn"><div class="btn-icon"></div>Arrêter</button>
+  </div>
+</div>
+
+<div id="settings-panel">
+  <div id="settings-header">
+    <button id="back-btn">← Retour</button>
+    <span id="settings-title">Paramètres</span>
+    <div style="width:70px"></div>
+  </div>
+  <div id="settings-body">
+    <p class="s-label">Clé API Anthropic (Claude)</p>
+    <p class="s-desc">Crée ta clé sur :</p>
+    <a id="gemini-link" href="https://platform.claude.com/settings/keys" target="_blank">🔑&nbsp; platform.claude.com/settings/keys</a>
+
+    <div id="input-row">
+      <input id="api-input" type="password" placeholder="sk-ant-..." autocomplete="off" autocapitalize="none" />
+      <button id="eye-btn">👁️</button>
+    </div>
+    <button id="save-btn">Enregistrer</button>
+
+    <div class="info-box green">
+      <p class="info-title">Coût (Claude Haiku 4.5)</p>
+      <p class="info-item">✓&nbsp; ~0,001 $ par analyse</p>
+      <p class="info-item">✓&nbsp; 80 questions ≈ 0,12 $</p>
+      <p class="info-item">✓&nbsp; 5 $ de crédit = ~4 000 analyses</p>
+    </div>
+    <div class="info-box blue">
+      <p class="info-title">Comment utiliser</p>
+      <p class="info-item">1. Appuie sur Démarrer</p>
+      <p class="info-item">2. Pointe la caméra sur le QCM</p>
+      <p class="info-item">3. La réponse s'affiche en vert</p>
+      <p class="info-item">4. Arrêter pour stopper</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+  const SYSTEM_PROMPT = `Tu analyses des images de QCM en temps réel.
+RÈGLE ABSOLUE : réponds UNIQUEMENT avec "Réponse X" où X est la lettre (A, B, C, D...) ou le numéro de la bonne réponse.
+Exemples : "Réponse B" — "Réponse 3"
+Si pas de QCM clair ou image floue : réponds uniquement "..."
+AUCUNE explication. AUCUN autre texte.`;
+  const MIN_INTERVAL_MS = 4200;
+
+  const video       = document.getElementById('video');
+  const canvas      = document.getElementById('canvas');
+  const ctx         = canvas.getContext('2d');
+  const permScreen  = document.getElementById('perm-screen');
+  const permBtn     = document.getElementById('perm-btn');
+  const liveTag     = document.getElementById('live-tag');
+  const liveLabel   = document.getElementById('live-label');
+  const warnBanner  = document.getElementById('warn-banner');
+  const errorBanner = document.getElementById('error-banner');
+  const answerBox   = document.getElementById('answer-box');
+  const answerText  = document.getElementById('answer-text');
+  const startBtn    = document.getElementById('start-btn');
+  const stopBtn     = document.getElementById('stop-btn');
+  const settingsBtn = document.getElementById('settings-btn');
+  const settingsPanel = document.getElementById('settings-panel');
+  const backBtn     = document.getElementById('back-btn');
+  const apiInput    = document.getElementById('api-input');
+  const eyeBtn      = document.getElementById('eye-btn');
+  const saveBtn     = document.getElementById('save-btn');
+
+  let apiKey = localStorage.getItem('anthropic_api_key') || '';
+  let isRunning = false;
+  let loopRunning = false;
+
+  function updateUI() {
+    warnBanner.classList.toggle('visible', !apiKey);
+    startBtn.classList.toggle('disabled', !apiKey);
+  }
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
+      });
+      video.srcObject = stream;
+    } catch {
+      permScreen.classList.add('visible');
+    }
+  }
+
+  permBtn.addEventListener('click', startCamera);
+
+  function captureFrame() {
+    canvas.width  = video.videoWidth  || 640;
+    canvas.height = video.videoHeight || 360;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.65).split(',')[1];
+  }
+
+  async function analyzeFrame(base64) {
+    const res = await fetch(ANTHROPIC_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 20,
+        system: SYSTEM_PROMPT,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
+            { type: 'text', text: 'Quelle est la réponse ?' }
+          ]
+        }]
+      })
+    });
+    if (res.status === 429) throw new Error('RATE_LIMIT');
+    if (!res.ok) {
+      let msg = `Erreur ${res.status}`;
+      try { const e = await res.json(); msg = `[${res.status}] ${e.error?.message || msg}`; } catch(_) {}
+      throw new Error('API:' + msg);
+    }
+    const data = await res.json();
+    return (data.content?.[0]?.text || '...').trim();
+  }
+
+  function showError(msg) { errorBanner.textContent = '⚠️ ' + msg; errorBanner.classList.add('visible'); }
+  function clearErrors() { errorBanner.classList.remove('visible'); }
+
+  async function captureLoop() {
+    if (!isRunning) { loopRunning = false; return; }
+    liveLabel.textContent = 'ANALYSE';
+    const start = Date.now();
+    try {
+      const result = await analyzeFrame(captureFrame());
+      clearErrors();
+      if (result === '...') { answerBox.classList.remove('visible'); }
+      else { answerText.textContent = result; answerBox.classList.add('visible'); }
+    } catch (e) {
+      if (e.message === 'RATE_LIMIT') {
+        showError('Limite atteinte — pause automatique');
+      } else if (e.message?.startsWith('API:')) {
+        showError(e.message.slice(4));
+        if (e.message.includes('401') || e.message.includes('403')) {
+          isRunning = false;
+          startBtn.style.display = 'flex'; stopBtn.style.display = 'none';
+          liveTag.classList.remove('visible');
+          loopRunning = false; return;
+        }
+      } else { showError(e.message || 'Erreur inconnue'); }
+    }
+    liveLabel.textContent = 'LIVE';
+    const wait = Math.max(0, MIN_INTERVAL_MS - (Date.now() - start));
+    setTimeout(captureLoop, wait);
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (!apiKey) return;
+    isRunning = true;
+    startBtn.style.display = 'none'; stopBtn.style.display = 'flex';
+    liveTag.classList.add('visible');
+    answerBox.classList.remove('visible'); clearErrors();
+    if (!loopRunning) { loopRunning = true; captureLoop(); }
+  });
+
+  stopBtn.addEventListener('click', () => {
+    isRunning = false;
+    startBtn.style.display = 'flex'; stopBtn.style.display = 'none';
+    liveTag.classList.remove('visible');
+    answerBox.classList.remove('visible'); clearErrors();
+  });
+
+  settingsBtn.addEventListener('click', () => settingsPanel.classList.add('open'));
+  backBtn.addEventListener('click', () => settingsPanel.classList.remove('open'));
+
+  eyeBtn.addEventListener('click', () => {
+    const show = apiInput.type === 'password';
+    apiInput.type = show ? 'text' : 'password';
+    eyeBtn.textContent = show ? '🙈' : '👁️';
+  });
+
+  saveBtn.addEventListener('click', () => {
+    const val = apiInput.value.trim();
+    if (!val) { alert('Entre une clé API valide.'); return; }
+    apiKey = val;
+    localStorage.setItem('anthropic_api_key', apiKey);
+    updateUI();
+    settingsPanel.classList.remove('open');
+  });
+
+  apiInput.value = apiKey;
+  updateUI();
+  startCamera();
+</script>
+</body>
+</html>
