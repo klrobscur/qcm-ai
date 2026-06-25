@@ -48,6 +48,37 @@
     #stop-btn .btn-icon { background: #fff; }
     #start-btn.disabled { opacity: .4; pointer-events: none; }
 
+    /* Zoom controls */
+    #zoom-bar {
+      position: absolute;
+      bottom: 120px;
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .zoom-btn {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.5);
+      background: rgba(0,0,0,0.5);
+      color: #fff;
+      font-size: 22px;
+      font-weight: 300;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .zoom-btn:active { background: rgba(255,255,255,0.2); }
+    #zoom-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,.9);
+      letter-spacing: 0.5px;
+    }
+
     /* Settings */
     #settings-panel { position: fixed; inset: 0; z-index: 100; background: #0d0d0d; display: none; flex-direction: column; padding: env(safe-area-inset-top,20px) 0 env(safe-area-inset-bottom,20px); overflow-y: auto; }
     #settings-panel.open { display: flex; }
@@ -101,6 +132,13 @@
   </div>
 
   <div id="answer-box"><div id="answer-text"></div></div>
+
+  <!-- Zoom controls -->
+  <div id="zoom-bar">
+    <button class="zoom-btn" id="zoom-in">+</button>
+    <span id="zoom-label">1×</span>
+    <button class="zoom-btn" id="zoom-out">−</button>
+  </div>
 
   <div id="bottom-bar">
     <button id="start-btn" class="main-btn"><div class="btn-icon"></div>Démarrer</button>
@@ -193,9 +231,23 @@ AUCUNE explication. AUCUN autre texte.`;
   permBtn.addEventListener('click', startCamera);
 
   function captureFrame() {
-    canvas.width  = video.videoWidth  || 640;
-    canvas.height = video.videoHeight || 360;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const vw = video.videoWidth  || 640;
+    const vh = video.videoHeight || 360;
+
+    if (!hwZoomSupported && zoomLevel > 1) {
+      // Crop center to simulate zoom for Claude
+      const cw = vw / zoomLevel;
+      const ch = vh / zoomLevel;
+      const cx = (vw - cw) / 2;
+      const cy = (vh - ch) / 2;
+      canvas.width  = 640;
+      canvas.height = Math.round(640 * ch / cw);
+      ctx.drawImage(video, cx, cy, cw, ch, 0, 0, canvas.width, canvas.height);
+    } else {
+      canvas.width  = 640;
+      canvas.height = Math.round(640 * vh / vw);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
     return canvas.toDataURL('image/jpeg', 0.65).split(',')[1];
   }
 
@@ -294,6 +346,47 @@ AUCUNE explication. AUCUN autre texte.`;
     updateUI();
     settingsPanel.classList.remove('open');
   });
+
+  // ── Zoom ──
+  let zoomLevel = 1.0;
+  let hwZoomMin = 1, hwZoomMax = 1, hwZoomSupported = false;
+  const zoomLabel = document.getElementById('zoom-label');
+  const zoomInBtn = document.getElementById('zoom-in');
+  const zoomOutBtn = document.getElementById('zoom-out');
+
+  function initZoom() {
+    const track = video.srcObject?.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      const caps = track.getCapabilities?.();
+      if (caps?.zoom) {
+        hwZoomSupported = true;
+        hwZoomMin = caps.zoom.min;
+        hwZoomMax = caps.zoom.max;
+      }
+    } catch(_) {}
+  }
+
+  function applyZoom(level) {
+    zoomLevel = Math.max(1, Math.min(5, Math.round(level * 4) / 4));
+    zoomLabel.textContent = zoomLevel.toFixed(1) + '×';
+
+    const track = video.srcObject?.getVideoTracks()[0];
+    if (track && hwZoomSupported) {
+      const hw = hwZoomMin + ((zoomLevel - 1) / 4) * (hwZoomMax - hwZoomMin);
+      track.applyConstraints({ advanced: [{ zoom: Math.min(hwZoomMax, hw) }] }).catch(() => {});
+    } else {
+      // CSS zoom for display + canvas will crop accordingly
+      video.style.transform = `scale(${zoomLevel})`;
+      video.style.transformOrigin = 'center center';
+    }
+  }
+
+  zoomInBtn.addEventListener('click', () => applyZoom(zoomLevel + 0.25));
+  zoomOutBtn.addEventListener('click', () => applyZoom(zoomLevel - 0.25));
+
+  // When camera starts, init zoom support
+  video.addEventListener('loadedmetadata', initZoom, { once: true });
 
   apiInput.value = apiKey;
   updateUI();
